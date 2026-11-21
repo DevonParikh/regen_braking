@@ -52,8 +52,8 @@ def write_params(path):
         "mot.G      = %s;   %% gear ratio motor:wheel" % _num(car.G),
         "mot.T_max  = %s;   %% N*m, max regen torque" % _num(car.T_motor_max),
         "mot.P_max  = %s;   %% W, max mechanical regen power" % _num(car.P_motor_max),
-        "mot.eta    = %s;   %% motor+inverter efficiency (mech -> elec)" % _num(car.eta_motor),
-        "mot.v_fade = %s;   %% m/s, regen fades linearly to 0 below this speed" % _num(car.v_fade),
+        "mot.eta    = %s;   %% lumped wheel-to-battery efficiency (Bayar sheet)" % _num(car.eta),
+        "mot.v_cut  = %s;   %% m/s, no regen at or below this speed" % _num(car.v_cut),
         "mot.axle   = '%s'; %% regen axle" % car.regen_axle,
         "",
         "%% Battery",
@@ -61,11 +61,11 @@ def write_params(path):
         "bat.Q_Ah   = %s;   %% Ah if modeled at 350 V nominal (for battery blocks)" % _num(car.E_batt / 3600 / 350),
         "bat.SOC0   = %s;" % _num(car.SOC0),
         "bat.P_max  = %s;   %% W, max charge power below SOC_taper" % _num(car.P_batt_max),
-        "bat.SOC_taper = %s; %% charge power tapers linearly to 0 between here and 100%%" % _num(car.SOC_taper),
-        "bat.eta    = %s;   %% charging efficiency (elec -> chemical)" % _num(car.eta_batt),
+        "bat.SOC_taper = %s; %% P_chg,max constant to here, then linear to 0 at 100%%" % _num(car.SOC_taper),
         "",
-        "%% Brake blending used by the VPython optimal strategy",
-        "ctl.grip_margin = %s; %% regen axle uses at most this fraction of mu*N" % _num(rc.GRIP_MARGIN),
+        "%% Brake blending used by the VPython model (Bayar sheet, Stage 2-4)",
+        "% F_reg = min(F_b, G*T_max/r_w, P_max/V, P_chg(SOC)/(eta*V), sqrt((mu*N_r)^2 - F_yr^2)), 0 if V <= v_cut",
+        "% I-curve variant also caps F_reg at F_b*(M*g*lf - h*F_b)/(M*g*L)",
         "",
         "%% Scenario 1: straight-line stop",
         "sc1.v0 = %s; sc1.a_brake = %s; sc1.v_stop = %s;" % (_num(st.v0), _num(st.a_brake), _num(st.v_stop)),
@@ -80,8 +80,8 @@ def write_params(path):
     ]
     for name, mk in [("straight", rc.make_straight_scenario), ("corner", rc.make_corner_scenario)]:
         r = rc.simulate(car, mk(), rc.optimal_strategy())
-        lines.append("vp.%s.E_stored_kJ = %s; vp.%s.E_fric_kJ = %s; vp.%s.regen_share = %s;" % (
-            name, _num(r.E_stored / 1e3), name, _num(r.E_fric / 1e3), name, _num(r.regen_share())))
+        lines.append("vp.%s.E_stored_kJ = %s; vp.%s.E_fric_kJ = %s; vp.%s.eta_regen = %s;" % (
+            name, _num(r.E_stored / 1e3), name, _num(r.E_fric / 1e3), name, _num(r.eta_regen())))
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     return path

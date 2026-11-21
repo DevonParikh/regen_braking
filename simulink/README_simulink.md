@@ -27,7 +27,8 @@ battery model), so differences test our assumptions.
    wheelbase, Cd·A, C_rr, tire radius, gear ratio, torque/power limits, pack size, SOC0).
 3. Drive Cycle Source block → Source = workspace variable `cycle_straight`.
 4. Look at how its controller blends regen and friction braking, and compare with our rule
-   `F_regen = min(F_req, F_T, F_P, F_B, F_grip)`.
+   `F_reg = min(F_b, G T_max/r_w, P_max/V, P_chg,max(SOC)/(η V), F_grip)` (EQUATIONS.md Stage 2), and with the
+   I-curve variant. Report η_regen = E_stored/E_B for both models.
 5. For the corner, use `cycle_corner` for speed and `path_corner` (or R = `sc2.R`) for the
    path in Vehicle Dynamics Blockset.
 

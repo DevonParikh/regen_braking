@@ -11,7 +11,7 @@ veh.h      = 0.5;   % m, CG height
 veh.track  = 1.58;   % m, track width
 veh.Cd     = 0.23;   % drag coefficient
 veh.A      = 2.22;   % m^2, frontal area
-veh.Crr    = 0.01;   % rolling resistance coefficient
+veh.Crr    = 0.012;   % rolling resistance coefficient
 veh.mu     = 0.9;   % road friction coefficient (dry)
 env.g      = 9.81;   % m/s^2
 env.rho    = 1.225;   % kg/m^3
@@ -21,8 +21,8 @@ mot.r_w    = 0.34;   % m, tire radius
 mot.G      = 9.0;   % gear ratio motor:wheel
 mot.T_max  = 420.0;   % N*m, max regen torque
 mot.P_max  = 75000.0;   % W, max mechanical regen power
-mot.eta    = 0.9;   % motor+inverter efficiency (mech -> elec)
-mot.v_fade = 1.5;   % m/s, regen fades linearly to 0 below this speed
+mot.eta    = 0.7;   % lumped wheel-to-battery efficiency (Bayar sheet)
+mot.v_cut  = 1.5;   % m/s, no regen at or below this speed
 mot.axle   = 'rear'; % regen axle
 
 %% Battery
@@ -30,11 +30,11 @@ bat.E      = 270000000.0;   % J (75 kWh)
 bat.Q_Ah   = 214.28571428571428;   % Ah if modeled at 350 V nominal (for battery blocks)
 bat.SOC0   = 0.6;
 bat.P_max  = 80000.0;   % W, max charge power below SOC_taper
-bat.SOC_taper = 0.8; % charge power tapers linearly to 0 between here and 100%
-bat.eta    = 0.95;   % charging efficiency (elec -> chemical)
+bat.SOC_taper = 0.9; % P_chg,max constant to here, then linear to 0 at 100%
 
-%% Brake blending used by the VPython optimal strategy
-ctl.grip_margin = 0.85; % regen axle uses at most this fraction of mu*N
+%% Brake blending used by the VPython model (Bayar sheet, Stage 2-4)
+% F_reg = min(F_b, G*T_max/r_w, P_max/V, P_chg(SOC)/(eta*V), sqrt((mu*N_r)^2 - F_yr^2)), 0 if V <= v_cut
+% I-curve variant also caps F_reg at F_b*(M*g*lf - h*F_b)/(M*g*L)
 
 %% Scenario 1: straight-line stop
 sc1.v0 = 30.0; sc1.a_brake = 3.0; sc1.v_stop = 0.3;
@@ -44,5 +44,5 @@ sc2.v0 = 20.0; sc2.a_brake = 3.0; sc2.v_end = 9.0; sc2.R = 40.0;
 sc2.approach = 60.0; sc2.s_brake_start = 35.0; sc2.exit_length = 20.0;
 
 %% VPython headline results to compare against (kJ)
-vp.straight.E_stored_kJ = 490.874121968228; vp.straight.E_fric_kJ = 209.96238317826803; vp.straight.regen_share = 0.7322195843035247;
-vp.corner.E_stored_kJ = 202.17410701976524; vp.corner.E_fric_kJ = 45.04446112639772; vp.corner.regen_share = 0.8399872246682744;
+vp.straight.E_stored_kJ = 399.768182388712; vp.straight.E_fric_kJ = 207.54273274020258; vp.straight.eta_regen = 0.513418412212878;
+vp.corner.E_stored_kJ = 175.96261225402006; vp.corner.E_fric_kJ = 28.19990994825463; vp.corner.eta_regen = 0.6293930716289909;

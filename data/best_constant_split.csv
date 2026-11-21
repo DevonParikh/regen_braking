@@ -1,5 +1,4 @@
 scenario,scenario_kind,safety_rule,best_safe_constant_regen_pct,best_constant_E_stored_kJ,optimal_E_stored_kJ,optimal_gain_pct
-"Straight-line stop, 30 m/s -> 0 at 3 m/s^2",straight,as safe as optimal,100.0,490.874,490.874,0.0
-"Straight-line stop, 30 m/s -> 0 at 3 m/s^2",straight,never slides,100.0,490.874,490.874,0.0
-"90 deg corner (R = 40 m), braking 20 -> 9 m/s at 3 m/s^2",corner,as safe as optimal,45.0,108.309,202.174,86.6638
-"90 deg corner (R = 40 m), braking 20 -> 9 m/s at 3 m/s^2",corner,never slides,85.0,197.915,202.174,2.15218
+"Straight-line stop, 30 m/s -> 0 at 3 m/s^2",straight,never exceeds grip,100.0,399.768,399.768,0.0
+"90 deg corner (R = 40 m), braking 20 -> 9 m/s at 3 m/s^2",corner,never exceeds grip,100.0,175.963,175.963,0.0
+90 deg corner (R = 35 m),corner,never exceeds grip,60.0,117.424,173.007,47.3355
