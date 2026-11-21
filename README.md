@@ -12,7 +12,7 @@ regen_core.py          physics engine: car, limits, grip, strategies, scenarios,
 regen_braking.py       VPython 3D animation + live graphs (Milestones 2-3)
 studies.py             every study / sweep / validation  -> data/*.csv, data/results_summary.md
 make_figures.py        poster/report figures from data/   -> figures/*.png
-EQUATIONS.md           all equations, with variables defined (read this first)
+EQUATIONS.md           all equations (Bayar et al. 2012 sheet + our analysis), variables defined
 simulink/              Milestone 4: export params + drive cycles, compare results
 notebooks/analysis.ipynb   runs the pipeline and shows the figures
 tests/test_physics.py  automatic checks of every physics claim
@@ -47,24 +47,29 @@ or create `scene = canvas()` first.
 
 ## Headline results (from `data/results_summary.md`)
 
-- **Straight stop from 30 m/s at 3 m/s²:** optimal split stores 491 kJ (73% of brake work by regen). Motor *power* is the binding limit above 13.5 m/s. Grip and battery never bind.
-- **90° corner (R = 40 m):** 202 kJ (84% regen). **Tire grip** becomes a binding limit (1.1 s), because sideways force uses up rear grip. Grip-blind 100% regen briefly exceeds rear grip, which makes the car unstable.
-- **Corner split must vary in time:** the best *constant* split that is as safe as optimal stores 108 kJ, vs 202 kJ for the time-varying optimum.
-- **Battery:** the 4th limit only binds above SOC ≈ 0.83. At SOC 0.95 only 176 kJ is stored.
-- **Braking intensity:** stored energy peaks at about 1.7 m/s² (634 kJ). Theory: 1.68 m/s² (EQUATIONS.md §8.4).
-- **Validation:** analytic solution matches to 0.01%. Time-step error is below 0.02% at the Δt we use.
+Equations: Bayar et al. (2012), Stages 1-4 (see `EQUATIONS.md`). Figure of merit:
+η_regen = E_stored / E_B, with lumped wheel-to-battery efficiency η = 0.7.
+
+- **Straight stop from 30 m/s at 3 m/s²:** the optimal split stores 400 kJ (η_regen 51%). The motor *power* cap binds above 13.5 m/s; grip and battery never bind.
+- **90° corner (R = 40 m):** 176 kJ (η_regen 63%). The rear axle reaches 100% of its grip but stays just inside the friction circle. At **R = 35 m**, grip binds for 0.5 s (173 kJ), and grip-blind 100% regen slides the rear tires.
+- **Energy–stability trade-off:** the I-curve stores 36% less on the straight stop (257 kJ) and 47% less in the 35 m corner (92 kJ).
+- **Constant vs time-varying split:** in the 35 m corner, the best constant split that never slides stores 117 kJ, vs 173 kJ for the optimal split.
+- **Battery:** the 4th cap only binds above SOC ≈ 0.93. At SOC 0.96 only 270 kJ is stored.
+- **Braking intensity:** stored energy peaks near 1.7 m/s² (512 kJ). Theory: 1.71 m/s².
+- **Validation:** the analytic solution matches to 0.007%. Time-step error is below 0.02% at the Δt we use.
 
 ## Parameters (cite sources in the report)
 
-The defaults are approximately a rear-drive Tesla Model 3. **Each needs a source** in the report:
-mass, wheelbase, CG position/height, Cd·A, C_rr, tire radius, gear ratio, motor torque and
-power limits, efficiencies, pack size and charge-power limits, μ (dry asphalt).
+From the Bayar sheet: C_rr ≈ 0.012, lumped η ≈ 0.7 (Bayar ≈79% recovery on FUDS; Sun et al. 2018),
+V_cut 1-2 m/s, P_chg,max constant to 90% SOC. The rest are approximately a rear-drive Tesla Model 3,
+because the paper does not give them. **Each needs a source** in the report: mass, l_f, l_r, h,
+Cd·A, tire radius, gear ratio, T_max, P_max, P_chg,max, E_cap, μ (dry asphalt).
 
 ## Who owns what
 
 | | owner | code | equations |
 |---|---|---|---|
-| motor / battery / energy limits, analytic theory | Alex | `regen_core` §2, `studies.analytic_check`, `limit_envelope`, `soc_study` | EQ 2, 7, 8 |
-| weight transfer, grip, cornering, load transfer | Aiden | `regen_core` §3, `axle_and_decel_sweep`, `load_transfer_study` | EQ 3, 5, 8.3 |
-| core simulation, convergence, Simulink | Devon | `regen_core.simulate`, `convergence_study`, `simulink/` | EQ 1, 6, 10 |
-| strategies, profile optimization, sensitivity | all | `strategy_tables`, `profile_optimization`, `sensitivity_study` | EQ 4, 9, 11 |
+| motor / battery caps, energy bookkeeping, analytic theory | Alex | `regen_core` §2, `studies.analytic_check`, `limit_envelope`, `soc_study` | Stage 1-2, bookkeeping, A1-A3 |
+| load transfer, I-curve, grip, cornering | Aiden | `regen_core` §3, `axle_and_decel_sweep`, `load_transfer_study` | Stage 3-4, A2, E1 |
+| core simulation, convergence, Simulink | Devon | `regen_core.simulate`, `convergence_study`, `simulink/` | Stage 1, A5, A6 |
+| strategies, profile optimization, sensitivity | all | `strategy_tables`, `profile_optimization`, `sensitivity_study` | Stage 2-3, A4, A7 |

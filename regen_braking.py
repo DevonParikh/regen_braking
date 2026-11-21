@@ -3,6 +3,7 @@ from vpython import *
 #  OPTIMIZING REGENERATIVE BRAKING OF ELECTRIC VEHICLES - VPython animation
 #  Team: Alex Wang, Devon Parikh, Aiden Knapp
 #
+#  Equations: Bayar et al. (2012) sheet - see EQUATIONS.md.
 #  The physics now lives in regen_core.py (one copy, shared with studies.py and the
 #  Simulink comparison). This file is the 3D animation + live graphs for the two headline
 #  runs (Milestones 2 and 3) and the original text tables.
@@ -20,7 +21,8 @@ from vpython import *
 # =============================================================================
 from regen_core import (Car, Strategy, Scenario, make_straight_scenario, make_corner_scenario,
                         simulate, print_summary, standard_strategies, best_constant_split,
-                        timeseries_rows, LIMIT_NAMES, GRIP_MARGIN, fmt, pad)
+                        timeseries_rows, LIMIT_NAMES, optimal_strategy,
+                        icurve_strategy, fmt, pad)
 
 VISUAL = True          # 3D animation + live graphs for the two headline runs
 PLAYBACK_SPEED = 2     # animation speed multiplier (only matters when VISUAL)
@@ -177,18 +179,18 @@ def print_csv(res):
 def strategy_table(car, scen):
     print("")
     print("=== Strategy comparison: " + scen.name + " (regen on " + car.regen_axle + ") ===")
-    print(pad("strategy", 34) + pad("stored kJ", 11) + pad("regen %", 9) + pad("heat kJ", 9)
+    print(pad("strategy", 34) + pad("stored kJ", 11) + pad("eta_reg%", 9) + pad("heat kJ", 9)
           + pad("peak grip", 11) + "unstable s")
     for st in standard_strategies():
         r = simulate(car, scen, st, None)
-        print(pad(st.name, 34) + pad(fmt(r.E_stored / 1000, 1), 11) + pad(fmt(100 * r.regen_share(), 1), 9)
+        print(pad(st.name, 34) + pad(fmt(r.E_stored / 1000, 1), 11) + pad(fmt(100 * r.eta_regen(), 1), 9)
               + pad(fmt(r.E_fric / 1000, 1), 9) + pad(fmt(100 * r.peak_grip_use, 0) + "%", 11)
               + fmt(r.t_grip_violation, 2))
 
 
 def print_best_constant_split(car, scen):
     f, E_best, E_opt = best_constant_split(car, scen)
-    print("  " + scen.name + ": best CONSTANT split (as safe as optimal) = " + fmt(100 * f, 0)
+    print("  " + scen.name + ": best CONSTANT split (never exceeds grip) = " + fmt(100 * f, 0)
           + "% regen -> " + fmt(E_best / 1000, 1) + " kJ;  time-varying optimal -> "
           + fmt(E_opt / 1000, 1) + " kJ")
 
@@ -201,7 +203,7 @@ def run_studies(car, straight, corner, r_s, r_c):
     print_best_constant_split(car, straight)
     print_best_constant_split(car, corner)
 
-    opt = Strategy("optimal", "optimal", 0, GRIP_MARGIN)
+    opt = optimal_strategy()
 
     print("")
     print("=== Front-axle vs rear-axle regen (optimal strategy) ===")
@@ -209,41 +211,41 @@ def run_studies(car, straight, corner, r_s, r_c):
         car.regen_axle = axle
         a = simulate(car, straight, opt, None)
         b = simulate(car, corner, opt, None)
-        print("  " + pad(axle, 6) + " straight: " + pad(fmt(a.E_stored / 1000, 1) + " kJ (" + fmt(100 * a.regen_share(), 0)
-              + "% regen)", 22) + "  corner: " + fmt(b.E_stored / 1000, 1) + " kJ (" + fmt(100 * b.regen_share(), 0) + "% regen)")
+        print("  " + pad(axle, 6) + " straight: " + pad(fmt(a.E_stored / 1000, 1) + " kJ (" + fmt(100 * a.eta_regen(), 0)
+              + "% eta_regen)", 26) + "  corner: " + fmt(b.E_stored / 1000, 1) + " kJ (" + fmt(100 * b.eta_regen(), 0) + "% eta_regen)")
     car.regen_axle = "rear"
 
     print("")
     print("=== Straight-line braking intensity sweep (optimal, rear regen) ===")
     gs = graph(width=445, height=250, title="Regen share vs braking intensity (straight)",
-               xtitle="deceleration (m/s^2)", ytitle="% of brake work by regen", align="left")
+               xtitle="deceleration (m/s^2)", ytitle="eta_regen = E_stored/E_B (%)", align="left")
     cs = gcurve(graph=gs, color=color.green, label="rear regen")
     for a_b in [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]:
         sc = make_straight_scenario()
         sc.a_brake = a_b
         r = simulate(car, sc, opt, None)
-        cs.plot(a_b, 100 * r.regen_share())
+        cs.plot(a_b, 100 * r.eta_regen())
         top = 0
         for i in range(4):
             if r.t_binding[i] > r.t_binding[top]:
                 top = i
-        print("  a = " + fmt(a_b, 1) + " m/s^2: stored " + pad(fmt(r.E_stored / 1000, 1) + " kJ", 10) + " regen share "
-              + pad(fmt(100 * r.regen_share(), 1) + "%", 7) + " most-binding limit: "
+        print("  a = " + fmt(a_b, 1) + " m/s^2: stored " + pad(fmt(r.E_stored / 1000, 1) + " kJ", 10) + " eta_regen "
+              + pad(fmt(100 * r.eta_regen(), 1) + "%", 7) + " most-binding limit: "
               + (LIMIT_NAMES[top] if r.t_binding[top] > 0 else "none")
               + ",  unstable s: " + fmt(r.t_grip_violation, 2))
 
     print("")
     print("=== Corner radius sweep (optimal, rear regen; same speeds) ===")
     gr = graph(width=445, height=250, title="Regen share vs corner radius",
-               xtitle="radius (m)", ytitle="% of brake work by regen", align="left")
+               xtitle="radius (m)", ytitle="eta_regen = E_stored/E_B (%)", align="left")
     cr = gcurve(graph=gr, color=color.blue, label="rear regen")
-    for R in [35.0, 40.0, 50.0, 65.0, 80.0, 120.0, 200.0]:
+    for R in [33.0, 35.0, 38.0, 40.0, 50.0, 80.0, 200.0]:
         sc = make_corner_scenario()
         sc.R = R
         r = simulate(car, sc, opt, None)
-        cr.plot(R, 100 * r.regen_share())
+        cr.plot(R, 100 * r.eta_regen())
         print("  R = " + pad(fmt(R, 0) + " m", 6) + ": stored " + pad(fmt(r.E_stored / 1000, 1) + " kJ", 10)
-              + " regen share " + pad(fmt(100 * r.regen_share(), 1) + "%", 7) + " grip-capped for "
+              + " eta_regen " + pad(fmt(100 * r.eta_regen(), 1) + "%", 7) + " grip-capped for "
               + fmt(r.t_binding[3], 2) + " s,  infeasible s: " + fmt(r.t_infeasible, 2))
 
     # regen share vs time for the two headline runs
@@ -265,7 +267,7 @@ def run_studies(car, straight, corner, r_s, r_c):
 car = Car()
 straight = make_straight_scenario()
 corner = make_corner_scenario()
-optimal = Strategy("optimal (max regen within limits)", "optimal", 0, GRIP_MARGIN)
+optimal = optimal_strategy()
 
 vis = None
 if VISUAL:

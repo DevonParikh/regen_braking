@@ -25,7 +25,9 @@ INK2 = "#52514e"
 MUTED = "#a3a29c"
 C = {"regen": "#2a78d6", "friction": "#eb6834", "demand": INK,
      "torque": "#1baf7a", "power": "#6250d6", "battery": "#eda100", "grip": "#008300",
-     "rear": "#2a78d6", "front": "#e87ba4", "theory": INK2, "blind": "#e34948"}
+     "rear": "#2a78d6", "front": "#e87ba4", "icurve": "#6250d6", "theory": INK2, "blind": "#e34948"}
+SERIES = [("rear-axle grip limit", C["rear"], "-"), ("front-axle grip limit", C["front"], "--"),
+          ("rear-axle I-curve", C["icurve"], "-.")]
 LIMIT_KEYS = [("lim_torque", "motor torque", "torque"), ("lim_power", "motor power", "power"),
               ("lim_battery", "battery charge", "battery"), ("lim_grip", "tire grip", "grip")]
 
@@ -72,7 +74,7 @@ def end_label(ax, x, y, text, color, dy=0):
 def fig_limit_envelope():
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharey=True)
     for ax, fname, title in [(axes[0], "limit_envelope.csv", "Regen force limits, SOC = 0.60"),
-                             (axes[1], "limit_envelope_soc92.csv", "Same car, nearly full battery (SOC = 0.92)")]:
+                             (axes[1], "limit_envelope_highsoc.csv", "Same car, nearly full battery (SOC = 0.96)")]:
         rows = load(fname)
         v = col(rows, "speed")
         ymax = 14.0
@@ -80,7 +82,9 @@ def fig_limit_envelope():
             y = [min(q / 1e3, ymax * 1.5) for q in col(rows, key)]
             ax.plot(v, y, color=C[ck], label=label + " limit")
         grip = [q / 1e3 for q in col(rows, "lim_grip_a3.0")]
-        ax.plot(v, grip, color=C["grip"], ls="--", label="tire grip limit (at 3 m/s²)")
+        ax.plot(v, grip, color=C["grip"], ls="--", label="tire grip limit μN_r (at 3 m/s²)")
+        icv = [q / 1e3 for q in col(rows, "icurve_a3.0")]
+        ax.plot(v, icv, color=C["icurve"], ls="-.", lw=1.6, label="I-curve rear share (at 3 m/s²)")
         dem = [q / 1e3 for q in col(rows, "demand_a3.0")]
         ax.plot(v, dem, color=C["demand"], lw=2.5, label="braking demand at 3 m/s²")
         regen_max = [min(rows[i]["lim_torque"], rows[i]["lim_power"], rows[i]["lim_battery"],
@@ -123,8 +127,7 @@ def fig_energy_budget():
     names = ["Straight stop\n(30 → 0 m/s)", "90° corner\n(20 → 9 m/s)"]
     parts = [("E_stored_kJ", "stored in battery", C["regen"]),
              ("E_fric_kJ", "friction-brake heat", C["friction"]),
-             ("E_motor_loss_kJ", "motor/inverter loss", "#1baf7a"),
-             ("E_batt_loss_kJ", "battery charging loss", "#eda100"),
+             ("E_loss_kJ", "conversion loss (1 − η)", "#1baf7a"),
              ("E_drag_kJ", "aerodynamic drag", "#e87ba4"),
              ("E_roll_kJ", "rolling resistance", "#008300"),
              ("KE_f_kJ", "kinetic energy left", "#d8d7d2")]
@@ -150,36 +153,34 @@ def fig_energy_budget():
 
 
 def fig_grip_corner():
-    opt = load("ts_corner_optimal.csv")
-    bl = load("ts_corner_gripblind.csv")
+    opt = load("ts_tight_optimal.csv")
+    icv = load("ts_tight_icurve.csv")
+    bl = load("ts_tight_gripblind.csv")
     fig, ax = plt.subplots(figsize=(8, 4.2))
     ax.plot(col(bl, "t"), col(bl, "grip_use"), color=C["blind"], label="100% regen (grip-blind)")
-    ax.plot(col(opt, "t"), col(opt, "grip_use"), color=C["regen"], label="optimal (grip-aware)")
+    ax.plot(col(opt, "t"), col(opt, "grip_use"), color=C["regen"], label="optimal (grip limit μN_r)")
+    ax.plot(col(icv, "t"), col(icv, "grip_use"), color=C["icurve"], ls="-.", label="I-curve")
     ax.axhline(1.0, color=INK, lw=1.2)
     ax.text(0.2, 1.015, "rear tires slide (unstable)", fontsize=10, color=INK2, va="bottom")
-    ax.axhline(0.85, color=MUTED, lw=1.2, ls="--")
-    ax.text(11.4, 0.84, "85% regen grip margin", fontsize=10, color=INK2, va="top", ha="right")
-    ax.set_ylim(0, 1.12)
+    ax.set_ylim(0, 1.15)
     ax.set_xlabel("time (s)")
-    ax.set_ylabel("rear-axle grip used (fraction of μN)")
-    ax.set_title("Rear-axle grip in the corner")
-    ax.legend(loc="lower right", fontsize=10)
+    ax.set_ylabel("rear-axle grip used, √(F_x²+F_y²)/(μN_r)")
+    ax.set_title("Rear-axle grip in a 35 m corner")
+    ax.legend(loc="center right", fontsize=10, bbox_to_anchor=(1.0, 0.6))
     save(fig, "fig04_grip_corner.png")
 
 
 def fig_decel_sweep():
     rows = load("sweep_decel.csv")
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
-    for axle in ["rear", "front"]:
-        rr = [r for r in rows if r["regen_axle"] == axle]
+    for name, color, ls in SERIES:
+        rr = [r for r in rows if r["series"] == name]
         a = col(rr, "a_brake")
-        axes[0].plot(a, col(rr, "E_stored_kJ"), color=C[axle], marker="o", ms=6,
-                     ls="-" if axle == "rear" else "--", label="simulation, %s-axle regen" % axle)
-        axes[1].plot(a, col(rr, "regen_share_pct"), color=C[axle], marker="o", ms=6,
-                     ls="-" if axle == "rear" else "--", label="%s-axle regen" % axle)
-    rr = [r for r in rows if r["regen_axle"] == "rear"]
+        axes[0].plot(a, col(rr, "E_stored_kJ"), color=color, marker="o", ms=5, ls=ls, label=name)
+        axes[1].plot(a, col(rr, "eta_regen_pct"), color=color, marker="o", ms=5, ls=ls, label=name)
+    rr = [r for r in rows if r["series"] == "rear-axle grip limit"]
     axes[0].plot(col(rr, "a_brake"), col(rr, "E_stored_theory_kJ"), color=C["theory"], ls=":",
-                 lw=2, label="theory (EQ 8.4, approx.)")
+                 lw=2, label="theory (EQUATIONS A3)")
     best = max(rr, key=lambda r: r["E_stored_kJ"])
     axes[0].annotate("best: %.2f m/s²\n%.0f kJ" % (best["a_brake"], best["E_stored_kJ"]),
                      (best["a_brake"], best["E_stored_kJ"]), xytext=(25, -5),
@@ -190,24 +191,30 @@ def fig_decel_sweep():
     axes[0].set_title("Energy stored per stop from 30 m/s")
     axes[0].legend(fontsize=10)
     axes[1].set_xlabel("braking deceleration (m/s²)")
-    axes[1].set_ylabel("% of brake work done by regen")
-    axes[1].set_ylim(0, 105)
-    axes[1].set_title("Regen share of braking")
-    axes[1].legend(fontsize=10)
+    axes[1].set_ylabel("η_regen = E_stored / E_B (%)")
+    axes[1].set_ylim(0, 75)
+    axes[1].set_title("Fraction of braking energy recovered")
     save(fig, "fig05_decel_sweep.png")
 
 
 def fig_radius_sweep():
     rows = load("sweep_radius.csv")
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    for axle in ["rear", "front"]:
-        rr = [r for r in rows if r["regen_axle"] == axle]
-        ax.plot(col(rr, "R"), col(rr, "regen_share_pct"), color=C[axle], marker="o", ms=6,
-                ls="-" if axle == "rear" else "--", label="%s-axle regen" % axle)
+    R_min = min(r["R"] for r in rows if r["t_infeasible_s"] == 0)
+    for name, color, ls in SERIES[:2]:
+        rr = [r for r in rows if r["series"] == name and r["t_infeasible_s"] == 0 and r["R"] <= 80]
+        ax.plot(col(rr, "R"), col(rr, "E_stored_kJ"), color=color, marker="o", ms=5, ls=ls, label=name)
+    icv = [r for r in rows if r["series"] == "rear-axle I-curve" and r["R"] == 40.0][0]
+    ax.axvspan(25, R_min - 0.5, color="#e6e5e1", lw=0)
+    ax.text(R_min - 1, 0.5, "car can't\nmake the\ncorner", ha="right", va="center", fontsize=10, color=INK2,
+            transform=ax.get_xaxis_transform())
+    ax.set_xlim(25, 80)
     ax.set_xlabel("corner radius (m)")
-    ax.set_ylabel("% of brake work done by regen")
+    ax.set_ylabel("energy stored (kJ)")
     ax.set_title("Tighter corners leave less rear grip for regen")
-    ax.legend(fontsize=10)
+    ax.text(79, ax.get_ylim()[0] + 0.5, "(rear I-curve: %.0f kJ at every radius)" % icv["E_stored_kJ"],
+            ha="right", va="bottom", fontsize=10, color=INK2)
+    ax.legend(fontsize=10, loc="center right")
     save(fig, "fig06_radius_sweep.png")
 
 
@@ -218,37 +225,39 @@ def fig_soc():
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     ax.plot(col(rows, "SOC0"), col(rows, "E_stored_kJ"), color=C["battery"], marker="o", ms=7)
     ax.axvline(soc_c, color=MUTED, ls="--", lw=1.2)
-    ax.text(soc_c - 0.005, 120, "battery limit\nstarts binding\n(SOC ≈ %.2f)" % soc_c,
+    ax.text(soc_c - 0.004, 120, "battery cap\nstarts binding\n(SOC ≈ %.3f)" % soc_c,
             ha="right", fontsize=10, color=INK2)
     ax.set_xlabel("battery state of charge at start of stop")
     ax.set_ylabel("energy stored (kJ)")
-    ax.set_ylim(0, 550)
+    ax.set_ylim(0, 450)
     ax.set_title("A nearly full battery can't absorb regen")
     save(fig, "fig07_soc.png")
 
 
 def fig_strategies():
     rows = load("strategy_comparison.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), sharey=False)
-    for ax, kind, title in [(axes[0], "straight", "Straight stop"), (axes[1], "corner", "90° corner")]:
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.6), sharey=True)
+    for ax, kind, title in [(axes[0], "straight", "Straight stop"), (axes[1], "corner", "90° corner, R = 40 m"),
+                            (axes[2], "tight", "90° corner, R = 35 m")]:
         rr = [r for r in rows if r["scenario_kind"] == kind]
-        names = [r["strategy"].replace(" (grip-blind)", "\n(grip-blind)").replace("optimal, ", "optimal,\n")
-                 for r in rr]
+        names = [r["strategy"].replace(" (grip-blind)", "\n(grip-blind)").replace(" (grip limit", "\n(grip limit")
+                 .replace(" (ideal", "\n(ideal") for r in rr]
         y = list(range(len(rr)))
-        colors = [C["regen"] if r["strategy"].startswith("optimal") else MUTED for r in rr]
+        colors = [C["regen"] if r["strategy"].startswith("optimal") else
+                  C["icurve"] if r["strategy"].startswith("I-curve") else MUTED for r in rr]
         ax.barh(y, col(rr, "E_stored_kJ"), color=colors, height=0.6, edgecolor="white")
         for i, r in enumerate(rr):
             txt = "%.0f kJ" % r["E_stored_kJ"]
             if r["t_grip_violation_s"] > 0:
-                txt += "  ⚠ exceeds grip"
+                txt += "  ⚠ slides"
             ax.text(r["E_stored_kJ"] + 5, i, txt, va="center", fontsize=10, color=INK)
         ax.set_yticks(y)
         ax.set_yticklabels(names, fontsize=10)
-        ax.invert_yaxis()
         ax.grid(axis="y", visible=False)
-        ax.set_xlim(0, max(col(rr, "E_stored_kJ")) * 1.45)
+        ax.set_xlim(0, max(col(rr, "E_stored_kJ")) * 1.5)
         ax.set_xlabel("energy stored (kJ)")
         ax.set_title(title)
+    axes[0].invert_yaxis()
     save(fig, "fig08_strategies.png")
 
 
@@ -259,7 +268,7 @@ def value_text(r):
 
 
 def fig_sensitivity():
-    rows = load("sensitivity.csv")
+    rows = [r for r in load("sensitivity.csv") if r["scenario_kind"] in ("straight", "tight")]
     fig, axes = plt.subplots(1, 2, figsize=(12, 5.2), sharey=True)
     labels = []
     for r in rows:
@@ -267,9 +276,9 @@ def fig_sensitivity():
             labels.append(r["label"])
     # sort by largest effect in the corner
     def eff(lbl):
-        return max(abs(r["pct_change_E"]) for r in rows if r["label"] == lbl)
+        return max(abs(r["pct_change_E"]) for r in rows if r["label"] == lbl and r["scenario_kind"] != "corner")
     labels.sort(key=eff)
-    for ax, kind, title in [(axes[0], "straight", "Straight stop"), (axes[1], "corner", "90° corner")]:
+    for ax, kind, title in [(axes[0], "straight", "Straight stop"), (axes[1], "tight", "90° corner, R = 35 m")]:
         for i, lbl in enumerate(labels):
             rr = [r for r in rows if r["label"] == lbl and r["scenario_kind"] == kind]
             rr.sort(key=lambda r: -abs(r["pct_change_E"]))      # small bars drawn on top
@@ -277,10 +286,18 @@ def fig_sensitivity():
                 lo = r["value"] < r["base_value"]
                 y = i + (-0.18 if lo else 0.18)
                 x = r["pct_change_E"]
+                if r["t_infeasible_s"] > 0:
+                    continue
                 ax.barh(y, x, color=C["friction"] if lo else C["regen"], height=0.34)
+                if r["t_infeasible_s"] > 0:
+                    continue
                 if abs(x) >= 1.0:
                     ax.text(x + (0.6 if x >= 0 else -0.6), y, value_text(r), va="center",
                             fontsize=8.5, color=INK2, ha="left" if x >= 0 else "right")
+            bad = [value_text(r) for r in rr if r["t_infeasible_s"] > 0]
+            if bad:
+                ax.text(-1, i - 0.18, "%s = %s: car can't make the corner" % (lbl.split(" ")[-1] if "mu" in lbl else lbl,
+                        ", ".join(bad)), ha="right", va="center", fontsize=8.5, color=INK2, style="italic")
         ax.axvline(0, color=INK, lw=1)
         ax.set_yticks(range(len(labels)))
         ax.set_yticklabels(labels, fontsize=10)
@@ -309,10 +326,13 @@ def fig_convergence():
     ax.xaxis.set_minor_formatter(NullFormatter())
     ax.set_xticklabels(["%g" % q for q in ticks])
     ax.axvline(0.002, color=MUTED, ls=":", lw=1.2)
-    ax.text(0.00205, 0.12, "dt used", fontsize=10, color=INK2)
+    ax.text(0.00205, 0.97, "dt used", fontsize=10, color=INK2, transform=ax.get_xaxis_transform(), va="top")
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.set_yticks([0.001, 0.01, 0.1])
+    ax.set_yticklabels(["0.001%", "0.01%", "0.1%"])
     ax.set_xlabel("time step dt (s)")
     ax.set_ylabel("% difference from dt = 0.00025 s")
-    ax.set_title("Time-step error stays below 0.12% for every dt tested")
+    ax.set_title("Time-step error stays below 0.1% for every dt tested")
     ax.legend(fontsize=10)
     save(fig, "fig10_convergence.png")
 
@@ -352,13 +372,13 @@ def fig_hierarchy():
     y = list(range(len(rows)))
     ax.barh(y, col(rows, "E_stored_kJ"), color=C["regen"], height=0.55, edgecolor="white")
     for i, r in enumerate(rows):
-        ax.text(r["E_stored_kJ"] + 6, i, "%.0f kJ (%.0f%% regen)" % (r["E_stored_kJ"], r["regen_share_pct"]),
+        ax.text(r["E_stored_kJ"] + 6, i, "%.0f kJ (η_regen %.0f%%)" % (r["E_stored_kJ"], r["eta_regen_pct"]),
                 va="center", fontsize=10)
     ax.set_yticks(y)
     ax.set_yticklabels([r["level"] for r in rows], fontsize=10)
     ax.invert_yaxis()
     ax.grid(axis="y", visible=False)
-    ax.set_xlim(0, 900)
+    ax.set_xlim(0, 760)
     ax.set_xlabel("energy stored, straight stop (kJ)")
     ax.set_title("Building the model up one effect at a time")
     save(fig, "fig12_model_hierarchy.png")
