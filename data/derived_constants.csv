@@ -1,0 +1,10 @@
+quantity,value
+"max regen force from torque, F_T0 (N)",11117.6
+"decel at which torque binds, F_T0/m (m/s^2)",6.00954
+"power-limit crossover speed at 3 m/s^2, v* = P/(m a) (m/s)",13.5135
+SOC above which battery always binds,0.83125
+"grip-limited decel, rear regen, margin 0.85 (m/s^2)",3.45571
+"grip-limited decel, front regen, margin 0.85 (m/s^2)",4.13998
+"energy-optimal constant decel from 30 m/s, theory (m/s^2)",1.67965
+"shortest all-regen stop from 30 m/s, rear (m)",228.638
+"shortest all-regen stop from 30 m/s, front (m)",225.86

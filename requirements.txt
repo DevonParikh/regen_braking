@@ -1,0 +1,7 @@
+vpython>=7.6.5
+jupyterlab>=4
+jupyterlab-vpython
+numpy
+matplotlib
+pytest
+nbstripout

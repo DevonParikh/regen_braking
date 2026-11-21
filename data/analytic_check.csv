@@ -1,0 +1,4 @@
+a_brake,v_star,v_t,E_stored_theory_kJ,E_stored_sim_kJ,pct_diff,regen_share_theory_pct,regen_share_sim_pct,grip_binding_s,battery_binding_s
+1.0,30.0,0.249603,711.716,711.717,0.000132902,100.0,100.0,0.0,0.0
+2.0,20.2703,0.499206,636.823,636.798,-0.00386907,89.4771,89.4736,0.0,0.0
+3.0,13.5135,0.74881,496.657,496.609,-0.00977017,69.7831,69.776,0.0,0.0

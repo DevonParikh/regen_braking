@@ -1,0 +1,3 @@
+v_switch,a1,a2,distance_m,E_stored_kJ,regen_share_pct,E_fric_kJ,E_drag_kJ,duration_s,t_infeasible_s,t_grip_violation_s,note
+14.0,2.9,3.4241,149.989,500.847,74.764,197.727,21.6853,9.52,0.0,0.0,
+,3.0,3.0,149.986,490.874,73.222,209.962,21.1157,9.902,0.0,0.0,constant 3 m/s^2 baseline
